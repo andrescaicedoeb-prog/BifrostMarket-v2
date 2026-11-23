@@ -1,9 +1,27 @@
 import { useEffect, useState } from 'react';
-import { FlatList, Image, KeyboardAvoidingView, Platform, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+  FlatList,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { StatusBar as BarraEstado } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useFonts, PlusJakartaSans_400Regular, PlusJakartaSans_500Medium, PlusJakartaSans_600SemiBold, PlusJakartaSans_700Bold } from '@expo-google-fonts/plus-jakarta-sans';
+import {
+  useFonts,
+  PlusJakartaSans_400Regular,
+  PlusJakartaSans_500Medium,
+  PlusJakartaSans_600SemiBold,
+  PlusJakartaSans_700Bold,
+} from '@expo-google-fonts/plus-jakarta-sans';
 
 // ---------- MARCA Y ESTILO ----------
 const MARCA = {
@@ -40,12 +58,8 @@ const CATEGORIAS_FILTRO = [
   'Cosmética e higiene personal',
 ];
 
-// Cupones disponibles (código y porcentaje de descuento)
 const CUPONES = { BIENVENIDO10: 0.1 };
-
 const FORMULARIO_VACIO = { nombre: '', categoria: '', precio: '', stock: '', descripcion: '' };
-
-// Reglas de envío
 const UMBRAL_ENVIO_GRATIS = 150000;
 const COSTO_ENVIO = 8000;
 
@@ -56,60 +70,210 @@ const SECCIONES = [
   { clave: 'historial', etiqueta: 'Historial', icono: 'history', iconoActivo: 'history' },
 ];
 
-// Color de fondo provisional del espacio de imagen, según la categoría
 const TINTE_CATEGORIA = {
-  'Tecnología': '#D5DED7',
-  'Moda': '#F6DDCF',
-  'Accesorios': '#E6E2D6',
+  Tecnología: '#D5DED7',
+  Moda: '#F6DDCF',
+  Accesorios: '#E6E2D6',
   'Cosmética e higiene personal': '#F5E6CC',
 };
 
-// ---------- DATOS INICIALES ----------
+// ---------- INVENTARIO Y DATOS INICIALES ----------
+// El stock vive únicamente dentro de cada variante. No se guarda un stock
+// independiente en el producto; el total se calcula con obtenerStockTotal().
+function crearVarianteUnica(id, precio, stock) {
+  return [
+    {
+      id: `VAR-${id}-UNICA`,
+      etiqueta: 'Única',
+      talla: null,
+      color: null,
+      precio,
+      stock,
+    },
+  ];
+}
+
+function obtenerStockTotal(producto) {
+  return (producto?.variantes || []).reduce((total, variante) => total + variante.stock, 0);
+}
+
+function crearClaveCarrito(productoId, varianteId) {
+  return `${productoId}::${varianteId}`;
+}
+
 const PRODUCTOS_INICIALES = [
-  { id: 'PROD-001', nombre: 'Audífonos Samsung Galaxy Buds', categoria: 'Tecnología', precio: 299000, stock: 15, descripcion: 'Diseño de Corea del Sur: audífonos inalámbricos con estuche de carga y sonido envolvente.', imagen: require('./assets/audifonos_samsung_buds.webp') },
-  { id: 'PROD-002', nombre: 'Huawei MateBook Fold Ultimate Design', categoria: 'Tecnología', precio: 13100000, stock: 0, descripcion: 'Diseño de China: computador plegable de pantalla grande para trabajar en cualquier lugar.', imagen: require('./assets/huawei_matebook_fold.jpg') },
-  { id: 'PROD-003', nombre: 'Abrigo Pujovik', categoria: 'Moda', precio: 980000, stock: 6, descripcion: 'Origen Rusia: abrigo de plumas muy usado en el invierno ruso, ideal para climas extremos.', imagen: require('./assets/abrigo_pujovik.jpg') },
-  { id: 'PROD-004', nombre: 'Li-Ning Way of Wade 12', categoria: 'Moda', precio: 900000, stock: 8, descripcion: 'Origen China: zapatillas de baloncesto de alto rendimiento, con gran amortiguación y máxima comodidad.', imagen: require('./assets/tenis_li_ning_wade_12.webp') },
-  { id: 'PROD-005', nombre: 'Torriden pack', categoria: 'Cosmética e higiene personal', precio: 211000, stock: 10, descripcion: 'Cosmética coreana: pack de cuidado facial con ingredientes hidratantes.', imagen: require('./assets/torriden_pack.jpg') },
-  { id: 'PROD-006', nombre: 'Perfume Ariana Grande Cloud Pink EDP', categoria: 'Cosmética e higiene personal', precio: 200000, stock: 12, descripcion: 'Eau de parfum de aroma dulce y suave, importado de Estados Unidos.', imagen: require('./assets/perfume_ariana_cloud_pink.webp') },
-  { id: 'PROD-007', nombre: 'Argollas de matrimonio oro 18k', categoria: 'Accesorios', precio: 3500000, stock: 3, descripcion: 'Par de argollas de matrimonio en oro de 18k con acabado pulido.', imagen: require('./assets/argollas_matrimonio_oro_18k.webp') },
-  { id: 'PROD-008', nombre: 'Ray-Ban Aviator Classic', categoria: 'Accesorios', precio: 477000, stock: 7, descripcion: 'Gafas de sol de estilo clásico aviador con protección UV y montura metálica.', imagen: require('./assets/rayban_aviator_classic.avif') },
-  { id: 'PROD-009', nombre: 'Jabón Dove', categoria: 'Cosmética e higiene personal', precio: 16000, stock: 50, descripcion: 'Jabón de tocador hidratante y suave para el cuidado diario de la piel.', imagen: require('./assets/jabon_dov.avif') },
-  { id: 'PROD-010', nombre: 'Camisa popelina', categoria: 'Moda', precio: 355000, stock: 20, descripcion: 'Camisa de popelina de algodón, fresca y elegante para el trabajo o los viajes.', imagen: require('./assets/camisa_popelina.jpg') },
-  { id: 'PROD-011', nombre: 'Celular Google Pixel 11', categoria: 'Tecnología', precio: 7300000, stock: 4, descripcion: 'Diseño de Estados Unidos: celular de gama alta con cámara avanzada y última generación.', imagen: require('./assets/google_pixel_11.png') },
-  { id: 'PROD-012', nombre: 'Toalla de baño de algodón egipcio', categoria: 'Cosmética e higiene personal', precio: 400000, stock: 14, descripcion: 'Origen Egipto: toalla de baño de algodón egipcio, suave y muy absorbente.', imagen: require('./assets/toalla_algodon_egipcio.webp') },
+  {
+    id: 'PROD-001',
+    nombre: 'Audífonos Samsung Galaxy Buds',
+    categoria: 'Tecnología',
+    precio: 299000,
+    variantes: crearVarianteUnica('001', 299000, 15),
+    descripcion: 'Diseño de Corea del Sur: audífonos inalámbricos con estuche de carga y sonido envolvente.',
+    imagen: require('./assets/audifonos_samsung_buds.webp'),
+  },
+  {
+    id: 'PROD-002',
+    nombre: 'Huawei MateBook Fold Ultimate Design',
+    categoria: 'Tecnología',
+    precio: 13100000,
+    variantes: crearVarianteUnica('002', 13100000, 0),
+    descripcion: 'Diseño de China: computador plegable de pantalla grande para trabajar en cualquier lugar.',
+    imagen: require('./assets/huawei_matebook_fold.jpg'),
+  },
+  {
+    id: 'PROD-003',
+    nombre: 'Abrigo Pujovik',
+    categoria: 'Moda',
+    precio: 980000,
+    variantes: [
+      { id: 'VAR-003-S-NEGRO', etiqueta: 'S - Negro', talla: 'S', color: 'Negro', precio: 980000, stock: 1 },
+      { id: 'VAR-003-M-NEGRO', etiqueta: 'M - Negro', talla: 'M', color: 'Negro', precio: 980000, stock: 1 },
+      { id: 'VAR-003-L-NEGRO', etiqueta: 'L - Negro', talla: 'L', color: 'Negro', precio: 980000, stock: 1 },
+      { id: 'VAR-003-S-BEIGE', etiqueta: 'S - Beige', talla: 'S', color: 'Beige', precio: 980000, stock: 1 },
+      { id: 'VAR-003-M-BEIGE', etiqueta: 'M - Beige', talla: 'M', color: 'Beige', precio: 980000, stock: 1 },
+      { id: 'VAR-003-L-BEIGE', etiqueta: 'L - Beige', talla: 'L', color: 'Beige', precio: 980000, stock: 1 },
+    ],
+    descripcion: 'Origen Rusia: abrigo de plumas muy usado en el invierno ruso, ideal para climas extremos.',
+    imagen: require('./assets/abrigo_pujovik.jpg'),
+  },
+  {
+    id: 'PROD-004',
+    nombre: 'Li-Ning Way of Wade 12',
+    categoria: 'Moda',
+    precio: 900000,
+    variantes: [
+      { id: 'VAR-004-39-NEGRO', etiqueta: '39 - Negro', talla: '39', color: 'Negro', precio: 900000, stock: 1 },
+      { id: 'VAR-004-40-NEGRO', etiqueta: '40 - Negro', talla: '40', color: 'Negro', precio: 900000, stock: 1 },
+      { id: 'VAR-004-41-NEGRO', etiqueta: '41 - Negro', talla: '41', color: 'Negro', precio: 900000, stock: 1 },
+      { id: 'VAR-004-42-NEGRO', etiqueta: '42 - Negro', talla: '42', color: 'Negro', precio: 900000, stock: 1 },
+      { id: 'VAR-004-39-BLANCO', etiqueta: '39 - Blanco', talla: '39', color: 'Blanco', precio: 900000, stock: 1 },
+      { id: 'VAR-004-40-BLANCO', etiqueta: '40 - Blanco', talla: '40', color: 'Blanco', precio: 900000, stock: 1 },
+      { id: 'VAR-004-41-BLANCO', etiqueta: '41 - Blanco', talla: '41', color: 'Blanco', precio: 900000, stock: 1 },
+      { id: 'VAR-004-42-BLANCO', etiqueta: '42 - Blanco', talla: '42', color: 'Blanco', precio: 900000, stock: 1 },
+    ],
+    descripcion: 'Origen China: zapatillas de baloncesto de alto rendimiento, con gran amortiguación y máxima comodidad.',
+    imagen: require('./assets/tenis_li_ning_wade_12.webp'),
+  },
+  {
+    id: 'PROD-005',
+    nombre: 'Torriden pack',
+    categoria: 'Cosmética e higiene personal',
+    precio: 211000,
+    variantes: crearVarianteUnica('005', 211000, 10),
+    descripcion: 'Cosmética coreana: pack de cuidado facial con ingredientes hidratantes.',
+    imagen: require('./assets/torriden_pack.jpg'),
+  },
+  {
+    id: 'PROD-006',
+    nombre: 'Perfume Ariana Grande Cloud Pink EDP',
+    categoria: 'Cosmética e higiene personal',
+    precio: 200000,
+    variantes: crearVarianteUnica('006', 200000, 12),
+    descripcion: 'Eau de parfum de aroma dulce y suave, importado de Estados Unidos.',
+    imagen: require('./assets/perfume_ariana_cloud_pink.webp'),
+  },
+  {
+    id: 'PROD-007',
+    nombre: 'Argollas de matrimonio oro 18k',
+    categoria: 'Accesorios',
+    precio: 3500000,
+    variantes: crearVarianteUnica('007', 3500000, 3),
+    descripcion: 'Par de argollas de matrimonio en oro de 18k con acabado pulido.',
+    imagen: require('./assets/argollas_matrimonio_oro_18k.webp'),
+  },
+  {
+    id: 'PROD-008',
+    nombre: 'Ray-Ban Aviator Classic',
+    categoria: 'Accesorios',
+    precio: 477000,
+    variantes: crearVarianteUnica('008', 477000, 7),
+    descripcion: 'Gafas de sol de estilo clásico aviador con protección UV y montura metálica.',
+    imagen: require('./assets/rayban_aviator_classic.avif'),
+  },
+  {
+    id: 'PROD-009',
+    nombre: 'Jabón Dove',
+    categoria: 'Cosmética e higiene personal',
+    precio: 16000,
+    variantes: crearVarianteUnica('009', 16000, 50),
+    descripcion: 'Jabón de tocador hidratante y suave para el cuidado diario de la piel.',
+    imagen: require('./assets/jabon_dov.avif'),
+  },
+  {
+    id: 'PROD-010',
+    nombre: 'Camisa popelina',
+    categoria: 'Moda',
+    precio: 355000,
+    variantes: [
+      { id: 'VAR-010-S-BLANCO', etiqueta: 'S - Blanco', talla: 'S', color: 'Blanco', precio: 355000, stock: 2 },
+      { id: 'VAR-010-S-AZUL', etiqueta: 'S - Azul', talla: 'S', color: 'Azul', precio: 355000, stock: 2 },
+      { id: 'VAR-010-M-BLANCO', etiqueta: 'M - Blanco', talla: 'M', color: 'Blanco', precio: 355000, stock: 3 },
+      { id: 'VAR-010-M-AZUL', etiqueta: 'M - Azul', talla: 'M', color: 'Azul', precio: 355000, stock: 3 },
+      { id: 'VAR-010-L-BLANCO', etiqueta: 'L - Blanco', talla: 'L', color: 'Blanco', precio: 355000, stock: 3 },
+      { id: 'VAR-010-L-AZUL', etiqueta: 'L - Azul', talla: 'L', color: 'Azul', precio: 355000, stock: 3 },
+      { id: 'VAR-010-XL-BLANCO', etiqueta: 'XL - Blanco', talla: 'XL', color: 'Blanco', precio: 355000, stock: 2 },
+      { id: 'VAR-010-XL-AZUL', etiqueta: 'XL - Azul', talla: 'XL', color: 'Azul', precio: 355000, stock: 2 },
+    ],
+    descripcion: 'Camisa de popelina de algodón, fresca y elegante para el trabajo o los viajes.',
+    imagen: require('./assets/camisa_popelina.jpg'),
+  },
+  {
+    id: 'PROD-011',
+    nombre: 'Celular Google Pixel 11',
+    categoria: 'Tecnología',
+    precio: 7300000,
+    variantes: crearVarianteUnica('011', 7300000, 4),
+    descripcion: 'Diseño de Estados Unidos: celular de gama alta con cámara avanzada y última generación.',
+    imagen: require('./assets/google_pixel_11.png'),
+  },
+  {
+    id: 'PROD-012',
+    nombre: 'Toalla de baño de algodón egipcio',
+    categoria: 'Cosmética e higiene personal',
+    precio: 400000,
+    variantes: crearVarianteUnica('012', 400000, 14),
+    descripcion: 'Origen Egipto: toalla de baño de algodón egipcio, suave y muy absorbente.',
+    imagen: require('./assets/toalla_algodon_egipcio.webp'),
+  },
 ];
 
-// Reseñas ficticias iniciales: dos valoraciones (5 y 4) por producto
-const RESENAS_INICIALES = PRODUCTOS_INICIALES.reduce((acc, p) => ({ ...acc, [p.id]: [5, 4] }), {});
+const RESENAS_INICIALES = PRODUCTOS_INICIALES.reduce(
+  (acc, producto) => ({ ...acc, [producto.id]: [5, 4] }),
+  {}
+);
 
 // ---------- FUNCIONES AUXILIARES ----------
 function calcularPromedio(lista) {
-  if (!lista || lista.length === 0) {
-    return 0;
-  }
-  const suma = lista.reduce((s, n) => s + n, 0);
+  if (!lista || lista.length === 0) return 0;
+  const suma = lista.reduce((total, numero) => total + numero, 0);
   return Math.round((suma / lista.length) * 10) / 10;
 }
 
-// Convierte 299000 en "$299.000"
 function formatearCOP(valor) {
   return '$' + String(valor).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 }
 
-function dosDigitos(n) {
-  return n < 10 ? '0' + n : String(n);
+function dosDigitos(numero) {
+  return numero < 10 ? '0' + numero : String(numero);
 }
 
 function formatearFecha(fecha) {
   return (
-    dosDigitos(fecha.getDate()) + '/' + dosDigitos(fecha.getMonth() + 1) + '/' +
-    fecha.getFullYear() + ' ' + dosDigitos(fecha.getHours()) + ':' + dosDigitos(fecha.getMinutes())
+    dosDigitos(fecha.getDate()) + '/' +
+    dosDigitos(fecha.getMonth() + 1) + '/' +
+    fecha.getFullYear() + ' ' +
+    dosDigitos(fecha.getHours()) + ':' +
+    dosDigitos(fecha.getMinutes())
   );
 }
 
-function textoUnidades(n) {
-  return n === 1 ? '1 unidad' : n + ' unidades';
+function textoUnidades(numero) {
+  return numero === 1 ? '1 unidad' : numero + ' unidades';
+}
+
+function obtenerEtiquetaVariante(variante) {
+  if (!variante) return 'Variante no disponible';
+  return variante.etiqueta || [variante.talla, variante.color].filter(Boolean).join(' - ') || 'Única';
 }
 
 // ---------- COMPONENTES ----------
@@ -129,11 +293,7 @@ function ImagenProducto({ producto, radio, tamanoIcono }) {
 function Encabezado() {
   return (
     <View style={estilos.encabezado}>
-      <Image
-        source={require('./assets/logo_bm.png')}
-        style={estilos.logo}
-        resizeMode="contain"
-      />
+      <Image source={require('./assets/logo_bm.png')} style={estilos.logo} resizeMode="contain" />
       <View style={estilos.divisor} />
       <View>
         <Text style={estilos.marcaNombre}>{MARCA.nombre}</Text>
@@ -163,24 +323,12 @@ function BarraBusqueda({ valor, alCambiar }) {
 
 function ChipsCategorias({ activa, alCambiar }) {
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      style={estilos.chipsScroll}
-      contentContainerStyle={estilos.chipsFila}
-    >
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={estilos.chipsScroll} contentContainerStyle={estilos.chipsFila}>
       {CATEGORIAS_FILTRO.map((categoria) => {
         const esActiva = categoria === activa;
         return (
-          <TouchableOpacity
-            key={categoria}
-            style={[estilos.chip, esActiva && estilos.chipActivo]}
-            onPress={() => alCambiar(categoria)}
-          >
-            <Text
-              style={[estilos.chipTexto, esActiva && estilos.chipTextoActivo]}
-              numberOfLines={2}
-            >
+          <TouchableOpacity key={categoria} style={[estilos.chip, esActiva && estilos.chipActivo]} onPress={() => alCambiar(categoria)}>
+            <Text style={[estilos.chipTexto, esActiva && estilos.chipTextoActivo]} numberOfLines={2}>
               {categoria}
             </Text>
           </TouchableOpacity>
@@ -197,22 +345,12 @@ function SelectorOrden({ orden, alCambiar }) {
   ];
   return (
     <View style={estilos.orden}>
-      {opciones.map((o) => {
-        const activa = o.clave === orden;
+      {opciones.map((opcion) => {
+        const activa = opcion.clave === orden;
         return (
-          <TouchableOpacity
-            key={o.clave}
-            style={[estilos.ordenOpcion, activa && estilos.ordenOpcionActiva]}
-            onPress={() => alCambiar(o.clave)}
-          >
-            <MaterialCommunityIcons
-              name="swap-vertical"
-              size={15}
-              color={activa ? COLORES.blanco : COLORES.texto}
-            />
-            <Text style={[estilos.ordenTexto, activa && estilos.ordenTextoActivo]}>
-              {o.etiqueta}
-            </Text>
+          <TouchableOpacity key={opcion.clave} style={[estilos.ordenOpcion, activa && estilos.ordenOpcionActiva]} onPress={() => alCambiar(opcion.clave)}>
+            <MaterialCommunityIcons name="swap-vertical" size={15} color={activa ? COLORES.blanco : COLORES.texto} />
+            <Text style={[estilos.ordenTexto, activa && estilos.ordenTextoActivo]}>{opcion.etiqueta}</Text>
           </TouchableOpacity>
         );
       })}
@@ -221,59 +359,24 @@ function SelectorOrden({ orden, alCambiar }) {
 }
 
 function TarjetaProducto({ producto, alAbrir, esFavorito, alAlternarFavorito }) {
-  const disponible = producto.stock > 0;
+  const stockTotal = obtenerStockTotal(producto);
+  const disponible = stockTotal > 0;
   return (
-    <TouchableOpacity
-      style={estilos.tarjeta}
-      activeOpacity={0.85}
-      onPress={() => alAbrir(producto)}
-    >
-      <View
-        style={[
-          estilos.tarjetaImagen,
-          { backgroundColor: TINTE_CATEGORIA[producto.categoria] },
-        ]}
-      >
+    <TouchableOpacity style={estilos.tarjeta} activeOpacity={0.85} onPress={() => alAbrir(producto)}>
+      <View style={[estilos.tarjetaImagen, { backgroundColor: TINTE_CATEGORIA[producto.categoria] }]}>
         <ImagenProducto producto={producto} radio={10} tamanoIcono={30} />
-        <TouchableOpacity
-          style={estilos.corazon}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          onPress={() => alAlternarFavorito(producto.id)}
-        >
-          <MaterialCommunityIcons
-            name={esFavorito ? 'heart' : 'heart-outline'}
-            size={20}
-            color={esFavorito ? COLORES.acento : COLORES.texto}
-          />
+        <TouchableOpacity style={estilos.corazon} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} onPress={() => alAlternarFavorito(producto.id)}>
+          <MaterialCommunityIcons name={esFavorito ? 'heart' : 'heart-outline'} size={20} color={esFavorito ? COLORES.acento : COLORES.texto} />
         </TouchableOpacity>
       </View>
-      <Text style={estilos.tarjetaNombre} numberOfLines={2}>
-        {producto.nombre}
-      </Text>
+      <Text style={estilos.tarjetaNombre} numberOfLines={2}>{producto.nombre}</Text>
       <Text style={estilos.tarjetaPrecio}>{formatearCOP(producto.precio)}</Text>
       <View style={estilos.etiqueta}>
-        <Text
-          style={estilos.etiquetaTexto}
-          numberOfLines={1}
-          adjustsFontSizeToFit
-          minimumFontScale={0.85}
-        >
-          {producto.categoria}
-        </Text>
+        <Text style={estilos.etiquetaTexto} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{producto.categoria}</Text>
       </View>
       <View style={estilos.disponibilidadFila}>
-        <View
-          style={[
-            estilos.punto,
-            { backgroundColor: disponible ? COLORES.disponible : COLORES.agotado },
-          ]}
-        />
-        <Text
-          style={[
-            estilos.disponibilidadTexto,
-            { color: disponible ? COLORES.disponible : COLORES.agotado },
-          ]}
-        >
+        <View style={[estilos.punto, { backgroundColor: disponible ? COLORES.disponible : COLORES.agotado }]} />
+        <Text style={[estilos.disponibilidadTexto, { color: disponible ? COLORES.disponible : COLORES.agotado }]}>
           {disponible ? 'Disponible' : 'Agotado'}
         </Text>
       </View>
@@ -284,19 +387,15 @@ function TarjetaProducto({ producto, alAbrir, esFavorito, alAlternarFavorito }) 
 function BarraNavegacion({ seccionActiva, alCambiar }) {
   return (
     <View style={estilos.barra}>
-      {SECCIONES.map((s, indice) => {
-        const activa = s.clave === seccionActiva;
+      {SECCIONES.map((seccion, indice) => {
+        const activa = seccion.clave === seccionActiva;
         const color = activa ? COLORES.acento : COLORES.texto;
         return (
-          <View key={s.clave} style={estilos.barraItemContenedor}>
+          <View key={seccion.clave} style={estilos.barraItemContenedor}>
             {indice > 0 && <View style={estilos.barraSeparador} />}
-            <TouchableOpacity style={estilos.barraItem} onPress={() => alCambiar(s.clave)}>
-              <MaterialCommunityIcons
-                name={activa ? s.iconoActivo : s.icono}
-                size={24}
-                color={color}
-              />
-              <Text style={[estilos.barraTexto, { color }]}>{s.etiqueta}</Text>
+            <TouchableOpacity style={estilos.barraItem} onPress={() => alCambiar(seccion.clave)}>
+              <MaterialCommunityIcons name={activa ? seccion.iconoActivo : seccion.icono} size={24} color={color} />
+              <Text style={[estilos.barraTexto, { color }]}>{seccion.etiqueta}</Text>
             </TouchableOpacity>
           </View>
         );
@@ -308,11 +407,11 @@ function BarraNavegacion({ seccionActiva, alCambiar }) {
 function Estrellas({ valor }) {
   return (
     <View style={estilos.estrellas}>
-      {[1, 2, 3, 4, 5].map((n) => {
+      {[1, 2, 3, 4, 5].map((numero) => {
         let nombre = 'star-outline';
-        if (valor >= n) nombre = 'star';
-        else if (valor >= n - 0.5) nombre = 'star-half-full';
-        return <MaterialCommunityIcons key={n} name={nombre} size={22} color={COLORES.acento} />;
+        if (valor >= numero) nombre = 'star';
+        else if (valor >= numero - 0.5) nombre = 'star-half-full';
+        return <MaterialCommunityIcons key={numero} name={nombre} size={22} color={COLORES.acento} />;
       })}
     </View>
   );
@@ -327,64 +426,98 @@ function FilaVolver({ alVolver }) {
   );
 }
 
-function PantallaDetalle({
-  producto,
-  esFavorito,
-  alAlternarFavorito,
-  alAgregar,
-  resenas,
-  valorResena,
-  errorResena,
-  alCambiarResena,
-  alEnviarResena,
-}) {
-  const disponible = producto.stock > 0;
+function SelectorVariante({ variantes, tallaSeleccionada, colorSeleccionado, alSeleccionarTalla, alSeleccionarColor }) {
+  const tallas = [...new Set(variantes.map((variante) => variante.talla).filter(Boolean))];
+  const colores = [...new Set(variantes.map((variante) => variante.color).filter(Boolean))];
+  if (tallas.length === 0 && colores.length === 0) return null;
+
+  return (
+    <View style={estilos.selectorVariante}>
+      {tallas.length > 0 && (
+        <View style={estilos.grupoOpciones}>
+          <Text style={estilos.opcionesTitulo}>Selecciona una talla</Text>
+          <View style={estilos.opcionesFila}>
+            {tallas.map((talla) => (
+              <TouchableOpacity
+                key={talla}
+                style={[estilos.opcionVariante, tallaSeleccionada === talla && estilos.opcionVarianteActiva]}
+                onPress={() => alSeleccionarTalla(talla)}
+              >
+                <Text style={[estilos.opcionVarianteTexto, tallaSeleccionada === talla && estilos.opcionVarianteTextoActivo]}>{talla}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      )}
+      {colores.length > 0 && (
+        <View style={estilos.grupoOpciones}>
+          <Text style={estilos.opcionesTitulo}>Selecciona un color</Text>
+          <View style={estilos.opcionesFila}>
+            {colores.map((color) => (
+              <TouchableOpacity
+                key={color}
+                style={[estilos.opcionVariante, colorSeleccionado === color && estilos.opcionVarianteActiva]}
+                onPress={() => alSeleccionarColor(color)}
+              >
+                <Text style={[estilos.opcionVarianteTexto, colorSeleccionado === color && estilos.opcionVarianteTextoActivo]}>{color}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      )}
+    </View>
+  );
+}
+
+function PantallaDetalle({ producto, esFavorito, alAlternarFavorito, alAgregar, resenas, valorResena, errorResena, alCambiarResena, alEnviarResena }) {
+  const requiereSeleccion = producto.variantes.length > 1;
+  const [tallaSeleccionada, setTallaSeleccionada] = useState(requiereSeleccion ? null : producto.variantes[0]?.talla || null);
+  const [colorSeleccionado, setColorSeleccionado] = useState(requiereSeleccion ? null : producto.variantes[0]?.color || null);
+
+  const varianteSeleccionada = requiereSeleccion
+    ? producto.variantes.find((variante) => variante.talla === tallaSeleccionada && variante.color === colorSeleccionado)
+    : producto.variantes[0];
+  const stockTotal = obtenerStockTotal(producto);
+  const disponible = varianteSeleccionada ? varianteSeleccionada.stock > 0 : stockTotal > 0;
   const promedio = calcularPromedio(resenas);
   const cantidadResenas = resenas.length;
-  const textoStock =
-    producto.stock === 1 ? 'Stock: 1 unidad' : 'Stock: ' + producto.stock + ' unidades';
+  const textoStock = varianteSeleccionada
+    ? (varianteSeleccionada.stock === 1 ? 'Stock: 1 unidad' : 'Stock: ' + varianteSeleccionada.stock + ' unidades')
+    : 'Selecciona una talla y un color para consultar disponibilidad.';
+  const precioMostrado = varianteSeleccionada ? varianteSeleccionada.precio : producto.precio;
+  const puedeAgregar = Boolean(varianteSeleccionada && varianteSeleccionada.stock > 0);
+
   return (
     <ScrollView contentContainerStyle={estilos.detalle}>
-      <View
-        style={[
-          estilos.detalleImagen,
-          { backgroundColor: TINTE_CATEGORIA[producto.categoria] },
-        ]}
-      >
+      <View style={[estilos.detalleImagen, { backgroundColor: TINTE_CATEGORIA[producto.categoria] }]}>
         <ImagenProducto producto={producto} radio={14} tamanoIcono={48} />
-        <TouchableOpacity
-          style={estilos.detalleCorazon}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          onPress={() => alAlternarFavorito(producto.id)}
-        >
-          <MaterialCommunityIcons
-            name={esFavorito ? 'heart' : 'heart-outline'}
-            size={26}
-            color={esFavorito ? COLORES.acento : COLORES.texto}
-          />
+        <TouchableOpacity style={estilos.detalleCorazon} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} onPress={() => alAlternarFavorito(producto.id)}>
+          <MaterialCommunityIcons name={esFavorito ? 'heart' : 'heart-outline'} size={26} color={esFavorito ? COLORES.acento : COLORES.texto} />
         </TouchableOpacity>
       </View>
       <Text style={estilos.detalleNombre}>{producto.nombre}</Text>
       <View style={[estilos.etiqueta, estilos.detalleEtiqueta]}>
         <Text style={estilos.detalleEtiquetaTexto}>{producto.categoria}</Text>
       </View>
-      <Text style={estilos.detallePrecio}>{formatearCOP(producto.precio)}</Text>
+      <Text style={estilos.detallePrecio}>{formatearCOP(precioMostrado)}</Text>
+
+      <SelectorVariante
+        variantes={producto.variantes}
+        tallaSeleccionada={tallaSeleccionada}
+        colorSeleccionado={colorSeleccionado}
+        alSeleccionarTalla={setTallaSeleccionada}
+        alSeleccionarColor={setColorSeleccionado}
+      />
+
       <View style={estilos.disponibilidadFila}>
-        <View
-          style={[
-            estilos.punto,
-            { backgroundColor: disponible ? COLORES.disponible : COLORES.agotado },
-          ]}
-        />
-        <Text
-          style={[
-            estilos.detalleStock,
-            { color: disponible ? COLORES.texto : COLORES.agotado },
-          ]}
-        >
-          {disponible ? textoStock : 'Agotado'}
+        <View style={[estilos.punto, { backgroundColor: disponible ? COLORES.disponible : COLORES.agotado }]} />
+        <Text style={[estilos.detalleStock, { color: disponible ? COLORES.texto : COLORES.agotado }]}>
+          {requiereSeleccion && !varianteSeleccionada
+            ? textoStock
+            : (varianteSeleccionada ? textoStock : 'Agotado')}
         </Text>
       </View>
+
       <View style={estilos.calificacionFila}>
         <Estrellas valor={promedio} />
         <Text style={estilos.calificacionTexto}>
@@ -396,13 +529,15 @@ function PantallaDetalle({
       <View style={estilos.detalleLinea} />
       <Text style={estilos.detalleDescripcion}>{producto.descripcion}</Text>
       <TouchableOpacity
-        style={[estilos.botonAgregar, !disponible && estilos.botonAgregarInactivo]}
-        disabled={!disponible}
-        onPress={() => alAgregar(producto)}
+        style={[estilos.botonAgregar, !puedeAgregar && estilos.botonAgregarInactivo]}
+        disabled={!puedeAgregar}
+        onPress={() => alAgregar(producto, varianteSeleccionada)}
       >
         <MaterialCommunityIcons name="cart-outline" size={22} color={COLORES.blanco} />
         <Text style={estilos.botonAgregarTexto}>
-          {disponible ? 'Agregar al carrito' : 'Agotado'}
+          {!varianteSeleccionada && requiereSeleccion
+            ? 'Selecciona una variante'
+            : (puedeAgregar ? 'Agregar al carrito' : 'Variante agotada')}
         </Text>
       </TouchableOpacity>
       <View style={estilos.bloqueResena}>
@@ -429,48 +564,40 @@ function PantallaFavoritos({ productos, favoritos, alAbrir, alAlternar, alIrCata
     <View style={estilos.seccion}>
       <TituloPantalla icono="heart-outline" texto="Favoritos" />
       <CuadriculaProductos
-        data={productos.filter((p) => favoritos.includes(p.id))}
+        data={productos.filter((producto) => favoritos.includes(producto.id))}
         favoritos={favoritos}
         alAbrir={alAbrir}
         alAlternar={alAlternar}
-        vacio={
-          <EstadoVacio
-            icono="heart-outline"
-            titulo="Aún no tienes favoritos"
-            texto="Toca el corazón de un producto para guardarlo aquí."
-            textoBoton="Ir al catálogo"
-            alBoton={alIrCatalogo}
-          />
-        }
+        vacio={<EstadoVacio icono="heart-outline" titulo="Aún no tienes favoritos" texto="Toca el corazón de un producto para guardarlo aquí." textoBoton="Ir al catálogo" alBoton={alIrCatalogo} />}
       />
     </View>
   );
 }
 
 function LineaCarrito({ linea, alMas, alMenos, alEliminar }) {
-  const p = linea.producto;
+  const producto = linea.producto;
+  const variante = linea.variante;
   return (
     <View style={estilos.linea}>
-      <View style={[estilos.lineaImagen, { backgroundColor: TINTE_CATEGORIA[p.categoria] }]}>
-        <ImagenProducto producto={p} radio={10} tamanoIcono={26} />
+      <View style={[estilos.lineaImagen, { backgroundColor: TINTE_CATEGORIA[producto.categoria] }]}>
+        <ImagenProducto producto={producto} radio={10} tamanoIcono={26} />
       </View>
       <View style={estilos.lineaDatos}>
-        <Text style={estilos.lineaNombre} numberOfLines={2}>
-          {p.nombre}
-        </Text>
-        <Text style={estilos.lineaPrecio}>{formatearCOP(p.precio)}</Text>
+        <Text style={estilos.lineaNombre} numberOfLines={2}>{producto.nombre}</Text>
+        <Text style={estilos.lineaVariante}>{obtenerEtiquetaVariante(variante)}</Text>
+        <Text style={estilos.lineaPrecio}>{formatearCOP(variante.precio)}</Text>
         <View style={estilos.cantidad}>
-          <TouchableOpacity style={estilos.cantidadBoton} onPress={() => alMenos(p.id)}>
+          <TouchableOpacity style={estilos.cantidadBoton} onPress={() => alMenos(linea.clave)}>
             <MaterialCommunityIcons name="minus" size={18} color={COLORES.texto} />
           </TouchableOpacity>
           <Text style={estilos.cantidadTexto}>{linea.cantidad}</Text>
-          <TouchableOpacity style={estilos.cantidadBoton} onPress={() => alMas(p.id)}>
+          <TouchableOpacity style={estilos.cantidadBoton} onPress={() => alMas(linea.clave)}>
             <MaterialCommunityIcons name="plus" size={18} color={COLORES.texto} />
           </TouchableOpacity>
         </View>
       </View>
       <View style={estilos.lineaSeparador} />
-      <TouchableOpacity style={estilos.eliminar} onPress={() => alEliminar(p.id)}>
+      <TouchableOpacity style={estilos.eliminar} onPress={() => alEliminar(linea.clave)}>
         <MaterialCommunityIcons name="trash-can-outline" size={22} color={COLORES.gris} />
         <Text style={estilos.eliminarTexto}>Eliminar</Text>
       </TouchableOpacity>
@@ -478,80 +605,29 @@ function LineaCarrito({ linea, alMas, alMenos, alEliminar }) {
   );
 }
 
-function PantallaCarrito({
-  lineas,
-  subtotal,
-  envio,
-  total,
-  alMas,
-  alMenos,
-  alEliminar,
-  alContinuar,
-  alIrCatalogo,
-  codigoCupon,
-  alCambiarCupon,
-  alAplicarCupon,
-  cuponAplicado,
-  descuento,
-}) {
+function PantallaCarrito({ lineas, subtotal, envio, total, alMas, alMenos, alEliminar, alContinuar, alIrCatalogo, codigoCupon, alCambiarCupon, alAplicarCupon, cuponAplicado, descuento }) {
   const vacio = lineas.length === 0;
   return (
-    <ScrollView
-      contentContainerStyle={estilos.carritoScroll}
-      keyboardShouldPersistTaps="handled"
-    >
+    <ScrollView contentContainerStyle={estilos.carritoScroll} keyboardShouldPersistTaps="handled">
       <TituloPantalla icono="cart-outline" texto="Tu carrito" />
       {vacio ? (
-        <EstadoVacio
-          estilo={estilos.carritoVacio}
-          icono="cart-outline"
-          titulo="Tu carrito está vacío"
-          texto="Agrega productos desde el catálogo."
-          textoBoton="Ir al catálogo"
-          alBoton={alIrCatalogo}
-        />
+        <EstadoVacio estilo={estilos.carritoVacio} icono="cart-outline" titulo="Tu carrito está vacío" texto="Agrega productos desde el catálogo." textoBoton="Ir al catálogo" alBoton={alIrCatalogo} />
       ) : (
-        lineas.map((l) => (
-          <LineaCarrito
-            key={l.id}
-            linea={l}
-            alMas={alMas}
-            alMenos={alMenos}
-            alEliminar={alEliminar}
-          />
+        lineas.map((linea) => (
+          <LineaCarrito key={linea.clave} linea={linea} alMas={alMas} alMenos={alMenos} alEliminar={alEliminar} />
         ))
       )}
       <View style={estilos.cuponFila}>
         <View style={estilos.cuponCampo}>
           <MaterialCommunityIcons name="ticket-percent-outline" size={22} color={COLORES.gris} />
-          <TextInput
-            style={estilos.cuponInput}
-            placeholder="¿Tienes un cupón?"
-            placeholderTextColor={COLORES.gris}
-            value={codigoCupon}
-            onChangeText={alCambiarCupon}
-            autoCapitalize="characters"
-            autoCorrect={false}
-          />
+          <TextInput style={estilos.cuponInput} placeholder="¿Tienes un cupón?" placeholderTextColor={COLORES.gris} value={codigoCupon} onChangeText={alCambiarCupon} autoCapitalize="characters" autoCorrect={false} />
         </View>
         <TouchableOpacity style={estilos.cuponBoton} onPress={alAplicarCupon}>
           <Text style={estilos.cuponBotonTexto}>Aplicar</Text>
         </TouchableOpacity>
       </View>
-      <BloqueResumen
-        estilo={estilos.resumen}
-        subtotal={subtotal}
-        descuento={descuento}
-        etiquetaDescuento={'Descuento (' + cuponAplicado + ')'}
-        envio={envio}
-        total={total}
-        vacio={vacio}
-      />
-      <TouchableOpacity
-        style={[estilos.botonContinuar, vacio && estilos.botonAgregarInactivo]}
-        disabled={vacio}
-        onPress={alContinuar}
-      >
+      <BloqueResumen estilo={estilos.resumen} subtotal={subtotal} descuento={descuento} etiquetaDescuento={'Descuento (' + (cuponAplicado || '') + ')'} envio={envio} total={total} vacio={vacio} />
+      <TouchableOpacity style={[estilos.botonContinuar, vacio && estilos.botonAgregarInactivo]} disabled={vacio} onPress={alContinuar}>
         <Text style={estilos.botonAgregarTexto}>Continuar compra</Text>
       </TouchableOpacity>
     </ScrollView>
@@ -561,18 +637,10 @@ function PantallaCarrito({
 function EstadoVacio({ icono, titulo, texto, textoBoton, alBoton, estilo }) {
   return (
     <View style={estilo || estilos.vacio}>
-      {icono && (
-        <View style={estilos.vacioIcono}>
-          <MaterialCommunityIcons name={icono} size={34} color={COLORES.apoyo} />
-        </View>
-      )}
+      {icono ? <View style={estilos.vacioIcono}><MaterialCommunityIcons name={icono} size={34} color={COLORES.apoyo} /></View> : null}
       <Text style={estilos.vacioTitulo}>{titulo}</Text>
       <Text style={estilos.vacioTexto}>{texto}</Text>
-      {textoBoton && (
-        <TouchableOpacity style={estilos.botonIr} onPress={alBoton}>
-          <Text style={estilos.botonIrTexto}>{textoBoton}</Text>
-        </TouchableOpacity>
-      )}
+      {textoBoton ? <TouchableOpacity style={estilos.botonIr} onPress={alBoton}><Text style={estilos.botonIrTexto}>{textoBoton}</Text></TouchableOpacity> : null}
     </View>
   );
 }
@@ -586,14 +654,7 @@ function CuadriculaProductos({ data, favoritos, alAbrir, alAlternar, vacio, pie 
       columnWrapperStyle={estilos.fila}
       contentContainerStyle={estilos.lista}
       keyboardShouldPersistTaps="handled"
-      renderItem={({ item }) => (
-        <TarjetaProducto
-          producto={item}
-          alAbrir={alAbrir}
-          esFavorito={favoritos.includes(item.id)}
-          alAlternarFavorito={alAlternar}
-        />
-      )}
+      renderItem={({ item }) => <TarjetaProducto producto={item} alAbrir={alAbrir} esFavorito={favoritos.includes(item.id)} alAlternarFavorito={alAlternar} />}
       ListEmptyComponent={vacio}
       ListFooterComponent={pie}
     />
@@ -623,29 +684,11 @@ function BloqueResumen({ subtotal, descuento = 0, envio, total, estilo, etiqueta
   const gratis = !vacio && envio === 0;
   return (
     <View style={estilo || estilos.bloque}>
-      <View style={estilos.resumenFila}>
-        <Text style={estilos.resumenEtiqueta}>Subtotal</Text>
-        <Text style={estilos.resumenValor}>{formatearCOP(subtotal)}</Text>
-      </View>
-      {descuento > 0 && (
-        <View style={estilos.resumenFila}>
-          <Text style={estilos.resumenEtiqueta}>{etiquetaDescuento}</Text>
-          <Text style={[estilos.resumenValor, { color: COLORES.disponible }]}>
-            {'-' + formatearCOP(descuento)}
-          </Text>
-        </View>
-      )}
-      <View style={estilos.resumenFila}>
-        <Text style={estilos.resumenEtiqueta}>Envío</Text>
-        <Text style={[estilos.resumenValor, gratis && { color: COLORES.disponible }]}>
-          {gratis ? 'Gratis' : formatearCOP(envio)}
-        </Text>
-      </View>
+      <View style={estilos.resumenFila}><Text style={estilos.resumenEtiqueta}>Subtotal</Text><Text style={estilos.resumenValor}>{formatearCOP(subtotal)}</Text></View>
+      {descuento > 0 ? <View style={estilos.resumenFila}><Text style={estilos.resumenEtiqueta}>{etiquetaDescuento}</Text><Text style={[estilos.resumenValor, { color: COLORES.disponible }]}>{'-' + formatearCOP(descuento)}</Text></View> : null}
+      <View style={estilos.resumenFila}><Text style={estilos.resumenEtiqueta}>Envío</Text><Text style={[estilos.resumenValor, gratis && { color: COLORES.disponible }]}>{gratis ? 'Gratis' : formatearCOP(envio)}</Text></View>
       <View style={estilos.resumenLinea} />
-      <View style={estilos.resumenFila}>
-        <Text style={estilos.resumenTotalEtiqueta}>Total</Text>
-        <Text style={estilos.resumenTotalValor}>{formatearCOP(total)}</Text>
-      </View>
+      <View style={estilos.resumenFila}><Text style={estilos.resumenTotalEtiqueta}>Total</Text><Text style={estilos.resumenTotalValor}>{formatearCOP(total)}</Text></View>
     </View>
   );
 }
@@ -659,18 +702,11 @@ function NotaSimulacion({ texto }) {
   );
 }
 
-function CampoFormulario({ etiqueta, valor, alCambiar, error, placeholder, teclado }) {
+function CampoFormulario({ etiqueta, valor, alCambiar, error, placeholder, teclado, editable = true }) {
   return (
     <View style={estilos.campo}>
       <Text style={estilos.campoEtiqueta}>{etiqueta}</Text>
-      <TextInput
-        style={[estilos.campoInput, error && estilos.campoInputError]}
-        value={valor}
-        onChangeText={alCambiar}
-        placeholder={placeholder}
-        placeholderTextColor={COLORES.gris}
-        keyboardType={teclado || 'default'}
-      />
+      <TextInput style={[estilos.campoInput, error && estilos.campoInputError, !editable && estilos.campoDeshabilitado]} value={valor} onChangeText={alCambiar} placeholder={placeholder} placeholderTextColor={COLORES.gris} keyboardType={teclado || 'default'} editable={editable} />
       {error ? <Text style={estilos.campoError}>{error}</Text> : null}
     </View>
   );
@@ -697,27 +733,14 @@ function DatosEntrega({ comprador }) {
 
 function PantallaDatos({ comprador, errores, alCambiar, alContinuar }) {
   return (
-    <KeyboardAvoidingView
-      style={estilos.seccion}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <KeyboardAvoidingView style={estilos.seccion} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={estilos.carritoScroll} keyboardShouldPersistTaps="handled">
         <TituloPantalla icono="account-outline" texto="Datos de entrega" />
         {CAMPOS_COMPRADOR.map(([campo, etiqueta, placeholder, teclado]) => (
-          <CampoFormulario
-            key={campo}
-            etiqueta={etiqueta}
-            valor={comprador[campo]}
-            alCambiar={(v) => alCambiar(campo, v)}
-            error={errores[campo]}
-            placeholder={placeholder}
-            teclado={teclado}
-          />
+          <CampoFormulario key={campo} etiqueta={etiqueta} valor={comprador[campo]} alCambiar={(valor) => alCambiar(campo, valor)} error={errores[campo]} placeholder={placeholder} teclado={teclado} />
         ))}
         <NotaSimulacion texto="Es un ejercicio académico: no pedimos tarjetas, contraseñas ni documentos." />
-        <TouchableOpacity style={estilos.botonContinuar} onPress={alContinuar}>
-          <Text style={estilos.botonAgregarTexto}>Continuar</Text>
-        </TouchableOpacity>
+        <TouchableOpacity style={estilos.botonContinuar} onPress={alContinuar}><Text style={estilos.botonAgregarTexto}>Continuar</Text></TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -730,19 +753,13 @@ function PantallaRevision({ lineas, comprador, subtotal, descuento, envio, total
       <DatosEntrega comprador={comprador} />
       <View style={estilos.bloque}>
         <Text style={estilos.bloqueTitulo}>Productos</Text>
-        {lineas.map((l) => (
-          <FilaDato
-            key={l.id}
-            etiqueta={l.cantidad + ' × ' + l.producto.nombre}
-            valor={formatearCOP(l.cantidad * l.producto.precio)}
-          />
+        {lineas.map((linea) => (
+          <FilaDato key={linea.clave} etiqueta={linea.cantidad + ' × ' + linea.producto.nombre + ' (' + obtenerEtiquetaVariante(linea.variante) + ')'} valor={formatearCOP(linea.cantidad * linea.variante.precio)} />
         ))}
       </View>
       <BloqueResumen subtotal={subtotal} descuento={descuento} envio={envio} total={total} />
       <NotaSimulacion texto="Esto es una simulación: no se realiza ningún cobro real." />
-      <TouchableOpacity style={estilos.botonContinuar} onPress={alConfirmar}>
-        <Text style={estilos.botonAgregarTexto}>Confirmar compra</Text>
-      </TouchableOpacity>
+      <TouchableOpacity style={estilos.botonContinuar} onPress={alConfirmar}><Text style={estilos.botonAgregarTexto}>Confirmar compra</Text></TouchableOpacity>
     </ScrollView>
   );
 }
@@ -750,21 +767,13 @@ function PantallaRevision({ lineas, comprador, subtotal, descuento, envio, total
 function PantallaConfirmacion({ pedido, alVerHistorial, alSeguir }) {
   return (
     <ScrollView contentContainerStyle={estilos.confirmacion}>
-      <View style={estilos.vacioIcono}>
-        <MaterialCommunityIcons name="check-circle-outline" size={40} color={COLORES.apoyo} />
-      </View>
+      <View style={estilos.vacioIcono}><MaterialCommunityIcons name="check-circle-outline" size={40} color={COLORES.apoyo} /></View>
       <Text style={estilos.vacioTitulo}>¡Pedido confirmado!</Text>
-      <View style={estilos.codigoChip}>
-        <Text style={estilos.codigoTexto}>{pedido.codigo}</Text>
-      </View>
+      <View style={estilos.codigoChip}><Text style={estilos.codigoTexto}>{pedido.codigo}</Text></View>
       <Text style={estilos.vacioTexto}>Total del pedido: {formatearCOP(pedido.total)}</Text>
       <NotaSimulacion texto="Esto es una simulación: no se realizó ningún cobro real." />
-      <TouchableOpacity style={estilos.botonIr} onPress={alVerHistorial}>
-        <Text style={estilos.botonIrTexto}>Ver historial</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={estilos.botonSecundario} onPress={alSeguir}>
-        <Text style={estilos.botonSecundarioTexto}>Seguir comprando</Text>
-      </TouchableOpacity>
+      <TouchableOpacity style={estilos.botonIr} onPress={alVerHistorial}><Text style={estilos.botonIrTexto}>Ver historial</Text></TouchableOpacity>
+      <TouchableOpacity style={estilos.botonSecundario} onPress={alSeguir}><Text style={estilos.botonSecundarioTexto}>Seguir comprando</Text></TouchableOpacity>
     </ScrollView>
   );
 }
@@ -779,23 +788,12 @@ function PantallaHistorial({ pedidos, alAbrir, alIrCatalogo }) {
         contentContainerStyle={estilos.carritoScroll}
         renderItem={({ item }) => (
           <TouchableOpacity style={estilos.pedidoTarjeta} onPress={() => alAbrir(item)}>
-            <View style={{ flex: 1 }}>
-              <Text style={estilos.pedidoCodigo}>{item.codigo}</Text>
-              <Text style={estilos.pedidoFecha}>{item.fecha}</Text>
-            </View>
+            <View style={{ flex: 1 }}><Text style={estilos.pedidoCodigo}>{item.codigo}</Text><Text style={estilos.pedidoFecha}>{item.fecha}</Text></View>
             <Text style={estilos.pedidoTotal}>{formatearCOP(item.total)}</Text>
             <MaterialCommunityIcons name="chevron-right" size={24} color={COLORES.gris} />
           </TouchableOpacity>
         )}
-        ListEmptyComponent={
-          <EstadoVacio
-            icono="history"
-            titulo="Aún no tienes pedidos registrados"
-            texto="Cuando confirmes una compra aparecerá aquí."
-            textoBoton="Ir al catálogo"
-            alBoton={alIrCatalogo}
-          />
-        }
+        ListEmptyComponent={<EstadoVacio icono="history" titulo="Aún no tienes pedidos registrados" texto="Cuando confirmes una compra aparecerá aquí." textoBoton="Ir al catálogo" alBoton={alIrCatalogo} />}
       />
     </View>
   );
@@ -808,12 +806,8 @@ function PantallaPedido({ pedido }) {
       <Text style={estilos.pedidoFechaDetalle}>{pedido.fecha}</Text>
       <View style={estilos.bloque}>
         <Text style={estilos.bloqueTitulo}>Productos</Text>
-        {pedido.lineas.map((l) => (
-          <FilaDato
-            key={l.id}
-            etiqueta={l.cantidad + ' × ' + l.nombre + ' (' + formatearCOP(l.precio) + ' c/u)'}
-            valor={formatearCOP(l.cantidad * l.precio)}
-          />
+        {pedido.lineas.map((linea) => (
+          <FilaDato key={linea.varianteId || linea.id} etiqueta={linea.cantidad + ' × ' + linea.nombre + ' (' + (linea.varianteEtiqueta || 'Única') + ')'} valor={formatearCOP(linea.cantidad * linea.precio)} />
         ))}
       </View>
       <BloqueResumen subtotal={pedido.subtotal} descuento={pedido.descuento || 0} envio={pedido.envio} total={pedido.total} />
@@ -827,25 +821,14 @@ function PanelLista({ productos, alEditar, alNuevo }) {
   return (
     <ScrollView contentContainerStyle={estilos.carritoScroll}>
       <TituloPantalla icono="storefront-outline" texto="Panel de vendedor" />
-      <TouchableOpacity
-        style={[estilos.botonContinuar, { marginTop: 0, marginBottom: 12 }]}
-        onPress={alNuevo}
-      >
-        <Text style={estilos.botonAgregarTexto}>Nuevo producto</Text>
-      </TouchableOpacity>
-      {productos.map((p) => (
-        <View key={p.id} style={estilos.pedidoTarjeta}>
+      <TouchableOpacity style={[estilos.botonContinuar, { marginTop: 0, marginBottom: 12 }]} onPress={alNuevo}><Text style={estilos.botonAgregarTexto}>Nuevo producto</Text></TouchableOpacity>
+      {productos.map((producto) => (
+        <View key={producto.id} style={estilos.pedidoTarjeta}>
           <View style={{ flex: 1 }}>
-            <Text style={estilos.pedidoCodigo} numberOfLines={1}>
-              {p.nombre}
-            </Text>
-            <Text style={estilos.pedidoFecha}>
-              {p.id + ' · ' + formatearCOP(p.precio) + ' · Stock ' + p.stock}
-            </Text>
+            <Text style={estilos.pedidoCodigo} numberOfLines={1}>{producto.nombre}</Text>
+            <Text style={estilos.pedidoFecha}>{producto.id + ' · ' + formatearCOP(producto.precio) + ' · Stock ' + obtenerStockTotal(producto)}</Text>
           </View>
-          <TouchableOpacity style={estilos.botonEditar} onPress={() => alEditar(p)}>
-            <Text style={estilos.botonEditarTexto}>Editar</Text>
-          </TouchableOpacity>
+          <TouchableOpacity style={estilos.botonEditar} onPress={() => alEditar(producto)}><Text style={estilos.botonEditarTexto}>Editar</Text></TouchableOpacity>
         </View>
       ))}
     </ScrollView>
@@ -858,36 +841,18 @@ const CAMPOS_PRODUCTO = [
   ['descripcion', 'Descripción', 'Mínimo 15 caracteres'],
 ];
 
-function PanelFormulario({ form, errores, editando, alCambiar, alGuardar }) {
+function PanelFormulario({ form, errores, editando, tieneVariantes, resumenVariantes, alCambiar, alGuardar }) {
   return (
-    <KeyboardAvoidingView
-      style={estilos.seccion}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <KeyboardAvoidingView style={estilos.seccion} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={estilos.carritoScroll} keyboardShouldPersistTaps="handled">
-        <TituloPantalla
-          icono="storefront-outline"
-          texto={editando ? 'Editar producto' : 'Nuevo producto'}
-        />
-        <CampoFormulario
-          etiqueta="Nombre"
-          valor={form.nombre}
-          alCambiar={(v) => alCambiar('nombre', v)}
-          error={errores.nombre}
-          placeholder="Ej.: Gorra urbana"
-        />
+        <TituloPantalla icono="storefront-outline" texto={editando ? 'Editar producto' : 'Nuevo producto'} />
+        <CampoFormulario etiqueta="Nombre" valor={form.nombre} alCambiar={(valor) => alCambiar('nombre', valor)} error={errores.nombre} placeholder="Ej.: Gorra urbana" />
         <View style={estilos.campo}>
           <Text style={estilos.campoEtiqueta}>Categoría</Text>
           <View style={estilos.chipsFormulario}>
-            {CATEGORIAS_FILTRO.slice(1).map((c) => (
-              <TouchableOpacity
-                key={c}
-                style={[estilos.chip, form.categoria === c && estilos.chipActivo]}
-                onPress={() => alCambiar('categoria', c)}
-              >
-                <Text style={[estilos.chipTexto, form.categoria === c && estilos.chipTextoActivo]}>
-                  {c}
-                </Text>
+            {CATEGORIAS_FILTRO.slice(1).map((categoria) => (
+              <TouchableOpacity key={categoria} style={[estilos.chip, form.categoria === categoria && estilos.chipActivo]} onPress={() => alCambiar('categoria', categoria)}>
+                <Text style={[estilos.chipTexto, form.categoria === categoria && estilos.chipTextoActivo]}>{categoria}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -898,15 +863,20 @@ function PanelFormulario({ form, errores, editando, alCambiar, alGuardar }) {
             key={campo}
             etiqueta={etiqueta}
             valor={form[campo]}
-            alCambiar={(v) => alCambiar(campo, v)}
+            alCambiar={(valor) => alCambiar(campo, valor)}
             error={errores[campo]}
             placeholder={placeholder}
             teclado={teclado}
+            editable={campo !== 'stock' || !tieneVariantes}
           />
         ))}
-        <TouchableOpacity style={estilos.botonContinuar} onPress={alGuardar}>
-          <Text style={estilos.botonAgregarTexto}>Guardar producto</Text>
-        </TouchableOpacity>
+        {tieneVariantes ? (
+          <View style={[estilos.notaSimulacion, { marginBottom: 12 }]}>
+            <MaterialCommunityIcons name="information-outline" size={20} color={COLORES.apoyo} />
+            <Text style={estilos.notaSimulacionTexto}>Este producto administra el inventario por talla y color. Para evitar alterar una variante sin elegirla, el stock general se muestra como solo lectura. Existencias: {resumenVariantes}.</Text>
+          </View>
+        ) : null}
+        <TouchableOpacity style={estilos.botonContinuar} onPress={alGuardar}><Text style={estilos.botonAgregarTexto}>Guardar producto</Text></TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -916,11 +886,7 @@ function MensajeVacio({ hayProductos, alLimpiar }) {
   return (
     <EstadoVacio
       titulo={hayProductos ? 'No encontramos productos' : 'No hay productos disponibles'}
-      texto={
-        hayProductos
-          ? 'Prueba con otra palabra o con otra categoría.'
-          : 'Por ahora el catálogo está vacío. Vuelve a intentarlo más tarde.'
-      }
+      texto={hayProductos ? 'Prueba con otra palabra o con otra categoría.' : 'Por ahora el catálogo está vacío. Vuelve a intentarlo más tarde.'}
       textoBoton={hayProductos ? 'Limpiar búsqueda' : null}
       alBoton={alLimpiar}
     />
@@ -935,6 +901,7 @@ export default function App() {
     PlusJakartaSans_600SemiBold,
     PlusJakartaSans_700Bold,
   });
+
   const [productos, setProductos] = useState(PRODUCTOS_INICIALES);
   const [busqueda, setBusqueda] = useState('');
   const [categoriaActiva, setCategoriaActiva] = useState('Todas');
@@ -944,16 +911,11 @@ export default function App() {
   const [favoritos, setFavoritos] = useState([]);
   const [carrito, setCarrito] = useState([]);
   const [aviso, setAviso] = useState(null);
-  const [flujo, setFlujo] = useState(null); // null | 'datos' | 'revision' | 'confirmado'
+  const [flujo, setFlujo] = useState(null);
   const [pedidos, setPedidos] = useState([]);
   const [pedidoSeleccionado, setPedidoSeleccionado] = useState(null);
   const [pedidoConfirmado, setPedidoConfirmado] = useState(null);
-  const [comprador, setComprador] = useState({
-    nombre: '',
-    telefono: '',
-    municipio: '',
-    direccion: '',
-  });
+  const [comprador, setComprador] = useState({ nombre: '', telefono: '', municipio: '', direccion: '' });
   const [errores, setErrores] = useState({});
   const [codigoCupon, setCodigoCupon] = useState('');
   const [cuponAplicado, setCuponAplicado] = useState(null);
@@ -961,104 +923,150 @@ export default function App() {
   const [valorResena, setValorResena] = useState('');
   const [errorResena, setErrorResena] = useState(null);
   const [datosCargados, setDatosCargados] = useState(false);
-  const [panel, setPanel] = useState(null); // null | 'lista' | 'formulario'
+  const [panel, setPanel] = useState(null);
   const [productoEdicion, setProductoEdicion] = useState(null);
   const [formProducto, setFormProducto] = useState(FORMULARIO_VACIO);
   const [erroresProducto, setErroresProducto] = useState({});
-  // Persistencia local (HU20): se recuperan carrito y favoritos al abrir la app
+
+  // Recupera los favoritos y migra el carrito antiguo cuando sea posible.
   useEffect(() => {
     async function cargarDatos() {
       try {
         const guardado = await AsyncStorage.getItem('bifrost_datos');
         if (guardado) {
           const datos = JSON.parse(guardado);
-          const idsValidos = PRODUCTOS_INICIALES.map((p) => p.id);
-          const carritoValido = Array.isArray(datos.carrito)
-            ? datos.carrito.filter((l) => {
-                const p = PRODUCTOS_INICIALES.find((x) => x.id === l.id);
-                return p && Number.isInteger(l.cantidad) && l.cantidad >= 1 && l.cantidad <= p.stock;
-              })
-            : [];
+          const idsValidos = PRODUCTOS_INICIALES.map((producto) => producto.id);
+          const carritoGuardado = Array.isArray(datos.carrito) ? datos.carrito : [];
+          const carritoValido = [];
+
+          carritoGuardado.forEach((linea) => {
+            const productoId = linea.productoId || linea.id;
+            const producto = PRODUCTOS_INICIALES.find((item) => item.id === productoId);
+            if (!producto || !Number.isInteger(linea.cantidad) || linea.cantidad < 1) return;
+
+            // Los registros antiguos no guardaban variante. Solo se migran
+            // automáticamente si el producto tiene una única variante.
+            const varianteId = linea.varianteId || (producto.variantes.length === 1 ? producto.variantes[0].id : null);
+            if (!varianteId) return;
+            const variante = producto.variantes.find((item) => item.id === varianteId);
+            if (!variante || linea.cantidad > variante.stock) return;
+
+            const clave = crearClaveCarrito(producto.id, variante.id);
+            const existente = carritoValido.find((item) => item.clave === clave);
+            if (existente) existente.cantidad += linea.cantidad;
+            else carritoValido.push({ clave, productoId: producto.id, varianteId: variante.id, cantidad: linea.cantidad });
+          });
+
+          const carritoDentroDeStock = carritoValido.filter((linea) => {
+            const producto = PRODUCTOS_INICIALES.find((item) => item.id === linea.productoId);
+            const variante = producto?.variantes.find((item) => item.id === linea.varianteId);
+            return variante && linea.cantidad <= variante.stock;
+          });
+
           const favoritosValidos = Array.isArray(datos.favoritos)
             ? datos.favoritos.filter((id) => idsValidos.includes(id))
             : [];
-          setCarrito(carritoValido);
+          setCarrito(carritoDentroDeStock);
           setFavoritos(favoritosValidos);
         }
       } catch (error) {
-        // Si los datos guardados están dañados, se usa el estado inicial
+        // Si el almacenamiento está dañado, se usan los estados iniciales.
       }
       setDatosCargados(true);
     }
     cargarDatos();
   }, []);
+
   useEffect(() => {
-    if (!datosCargados) {
-      return;
-    }
+    if (!datosCargados) return;
     AsyncStorage.setItem('bifrost_datos', JSON.stringify({ carrito, favoritos })).catch(() => {});
   }, [carrito, favoritos, datosCargados]);
-  if (!fuentesListas) {
-    return null;
-  }
-  // Búsqueda + categoría + orden, aplicados juntos
+
+  if (!fuentesListas) return null;
+
   const textoBusqueda = busqueda.trim().toLowerCase();
   const productosVisibles = productos
-    .filter((p) => categoriaActiva === 'Todas' || p.categoria === categoriaActiva)
-    .filter((p) => p.nombre.toLowerCase().includes(textoBusqueda))
+    .filter((producto) => categoriaActiva === 'Todas' || producto.categoria === categoriaActiva)
+    .filter((producto) => producto.nombre.toLowerCase().includes(textoBusqueda))
     .sort((a, b) => (orden === 'asc' ? a.precio - b.precio : b.precio - a.precio));
+
   function mostrarAviso(texto, tipo = 'info') {
     setAviso({ texto, tipo });
     setTimeout(() => setAviso(null), 2200);
   }
-  function agregarAlCarrito(producto) {
-    if (producto.stock <= 0) {
-      mostrarAviso('Este producto está agotado.', 'error');
+
+  function agregarAlCarrito(producto, variante) {
+    if (!variante) {
+      mostrarAviso('Selecciona una talla y un color antes de agregar.', 'error');
       return;
     }
-    const linea = carrito.find((l) => l.id === producto.id);
-    if (linea && linea.cantidad >= producto.stock) {
-      mostrarAviso('Ya tienes en el carrito todas las unidades disponibles.', 'error');
+    if (variante.stock <= 0) {
+      mostrarAviso('La variante seleccionada está agotada.', 'error');
       return;
     }
-    if (linea) {
-      setCarrito(
-        carrito.map((l) => (l.id === producto.id ? { ...l, cantidad: l.cantidad + 1 } : l))
-      );
+
+    const clave = crearClaveCarrito(producto.id, variante.id);
+    const lineaExistente = carrito.find((linea) => linea.clave === clave);
+    const cantidadActual = lineaExistente ? lineaExistente.cantidad : 0;
+
+    if (cantidadActual + 1 > variante.stock) {
+      mostrarAviso('Solo hay ' + textoUnidades(variante.stock) + ' disponibles de esta variante.', 'error');
+      return;
+    }
+
+    if (lineaExistente) {
+      setCarrito(carrito.map((linea) => (linea.clave === clave ? { ...linea, cantidad: linea.cantidad + 1 } : linea)));
     } else {
-      setCarrito([...carrito, { id: producto.id, cantidad: 1 }]);
+      setCarrito([...carrito, { clave, productoId: producto.id, varianteId: variante.id, cantidad: 1 }]);
     }
-    mostrarAviso('Producto agregado al carrito.');
+    mostrarAviso('Variante agregada al carrito.');
   }
-  function aumentarCantidad(id) {
-    const producto = productos.find((p) => p.id === id);
-    const linea = carrito.find((l) => l.id === id);
-    if (linea.cantidad >= producto.stock) {
-      mostrarAviso('Solo hay ' + textoUnidades(producto.stock) + ' disponibles.', 'error');
+
+    function aumentarCantidad(clave) {
+    const linea = carrito.find((item) => item.clave === clave);
+    if (!linea) return;
+    const producto = productos.find((item) => item.id === linea.productoId);
+    const variante = producto?.variantes.find((item) => item.id === linea.varianteId);
+    if (!variante) {
+      mostrarAviso('No encontramos esta variante del producto.', 'error');
       return;
     }
-    setCarrito(carrito.map((l) => (l.id === id ? { ...l, cantidad: l.cantidad + 1 } : l)));
+    if (linea.cantidad + 1 > variante.stock) {
+      mostrarAviso('Solo hay ' + textoUnidades(variante.stock) + ' disponibles de esta variante.', 'error');
+      return;
+    }
+    setCarrito(carrito.map((item) => (item.clave === clave ? { ...item, cantidad: item.cantidad + 1 } : item)));
   }
-  function eliminarDelCarrito(id) {
-    setCarrito(carrito.filter((l) => l.id !== id));
+
+  function eliminarDelCarrito(clave) {
+    setCarrito(carrito.filter((linea) => linea.clave !== clave));
     mostrarAviso('Producto eliminado del carrito.');
   }
-  function disminuirCantidad(id) {
-    const linea = carrito.find((l) => l.id === id);
+
+  function disminuirCantidad(clave) {
+    const linea = carrito.find((item) => item.clave === clave);
+    if (!linea) return;
     if (linea.cantidad <= 1) {
-      eliminarDelCarrito(id);
+      eliminarDelCarrito(clave);
       return;
     }
-    setCarrito(carrito.map((l) => (l.id === id ? { ...l, cantidad: l.cantidad - 1 } : l)));
+    setCarrito(carrito.map((item) => (item.clave === clave ? { ...item, cantidad: item.cantidad - 1 } : item)));
   }
-  const lineasCarrito = carrito.map((l) => ({
-    ...l,
-    producto: productos.find((p) => p.id === l.id),
-  }));
-  const subtotal = lineasCarrito.reduce((suma, l) => suma + l.cantidad * l.producto.precio, 0);
+
+  const lineasCarrito = carrito
+    .map((linea) => {
+      const producto = productos.find((item) => item.id === linea.productoId);
+      const variante = producto?.variantes.find((item) => item.id === linea.varianteId);
+      if (!producto || !variante) return null;
+      return { ...linea, producto, variante };
+    })
+    .filter(Boolean);
+
+  const subtotal = lineasCarrito.reduce((suma, linea) => suma + linea.cantidad * linea.variante.precio, 0);
   const envio = subtotal === 0 ? 0 : subtotal < UMBRAL_ENVIO_GRATIS ? COSTO_ENVIO : 0;
   const descuento = cuponAplicado ? Math.round(subtotal * CUPONES[cuponAplicado]) : 0;
   const total = subtotal - descuento + envio;
+
   function iniciarCompra() {
     if (carrito.length === 0) {
       mostrarAviso('Tu carrito está vacío.', 'error');
@@ -1067,28 +1075,19 @@ export default function App() {
     setErrores({});
     setFlujo('datos');
   }
+
   function cambiarDato(campo, valor) {
     setComprador({ ...comprador, [campo]: valor });
-    if (errores[campo]) {
-      setErrores({ ...errores, [campo]: null });
-    }
+    if (errores[campo]) setErrores({ ...errores, [campo]: null });
   }
+
   function validarDatos() {
     const nuevos = {};
-    if (comprador.nombre.trim() === '') {
-      nuevos.nombre = 'Falta tu nombre.';
-    }
-    if (comprador.telefono.trim() === '') {
-      nuevos.telefono = 'Falta tu teléfono.';
-    } else if (!/^[0-9+\s-]{7,15}$/.test(comprador.telefono.trim())) {
-      nuevos.telefono = 'Escribe un teléfono válido (solo números, mínimo 7 dígitos).';
-    }
-    if (comprador.municipio.trim() === '') {
-      nuevos.municipio = 'Falta tu municipio.';
-    }
-    if (comprador.direccion.trim() === '') {
-      nuevos.direccion = 'Falta tu dirección.';
-    }
+    if (comprador.nombre.trim() === '') nuevos.nombre = 'Falta tu nombre.';
+    if (comprador.telefono.trim() === '') nuevos.telefono = 'Falta tu teléfono.';
+    else if (!/^[0-9+\s-]{7,15}$/.test(comprador.telefono.trim())) nuevos.telefono = 'Escribe un teléfono válido (solo números, mínimo 7 dígitos).';
+    if (comprador.municipio.trim() === '') nuevos.municipio = 'Falta tu municipio.';
+    if (comprador.direccion.trim() === '') nuevos.direccion = 'Falta tu dirección.';
     setErrores(nuevos);
     if (Object.keys(nuevos).length > 0) {
       mostrarAviso('Revisa los campos marcados.', 'error');
@@ -1096,36 +1095,54 @@ export default function App() {
     }
     setFlujo('revision');
   }
+
   function confirmarPedido() {
-    // Se verifica el stock de TODAS las líneas antes de descontar algo
-    const sinStock = lineasCarrito.find((l) => l.cantidad > l.producto.stock);
+    // Se valida cada variante antes de descontar cualquier existencia.
+    const sinStock = lineasCarrito.find((linea) => linea.cantidad > linea.variante.stock);
     if (sinStock) {
-      mostrarAviso('No hay stock suficiente de ' + sinStock.producto.nombre + '. Ajusta tu carrito.', 'error');
+      mostrarAviso('No hay stock suficiente de ' + sinStock.producto.nombre + ' (' + obtenerEtiquetaVariante(sinStock.variante) + '). Ajusta tu carrito.', 'error');
       setFlujo(null);
       setSeccion('carrito');
       return;
     }
+
     const pedido = {
       codigo: 'PED-' + String(pedidos.length + 1).padStart(4, '0'),
       fecha: formatearFecha(new Date()),
       comprador: { ...comprador },
-      lineas: lineasCarrito.map((l) => ({
-        id: l.id,
-        nombre: l.producto.nombre,
-        cantidad: l.cantidad,
-        precio: l.producto.precio,
+      lineas: lineasCarrito.map((linea) => ({
+        id: linea.clave,
+        productoId: linea.producto.id,
+        varianteId: linea.variante.id,
+        varianteEtiqueta: obtenerEtiquetaVariante(linea.variante),
+        talla: linea.variante.talla,
+        color: linea.variante.color,
+        nombre: linea.producto.nombre,
+        cantidad: linea.cantidad,
+        precio: linea.variante.precio,
       })),
-      subtotal: subtotal,
-      descuento: descuento,
-      envio: envio,
-      total: total,
+      subtotal,
+      descuento,
+      envio,
+      total,
     };
-    setProductos(
-      productos.map((p) => {
-        const linea = carrito.find((l) => l.id === p.id);
-        return linea ? { ...p, stock: p.stock - linea.cantidad } : p;
-      })
-    );
+
+    // El descuento se aplica exclusivamente a las variantes compradas.
+    const cantidadesPorVariante = lineasCarrito.reduce((acumulado, linea) => {
+      acumulado[linea.variante.id] = (acumulado[linea.variante.id] || 0) + linea.cantidad;
+      return acumulado;
+    }, {});
+
+    setProductos((productosActuales) => productosActuales.map((producto) => ({
+      ...producto,
+      variantes: producto.variantes.map((variante) => {
+        const cantidadComprada = cantidadesPorVariante[variante.id] || 0;
+        return cantidadComprada > 0
+          ? { ...variante, stock: Math.max(0, variante.stock - cantidadComprada) }
+          : variante;
+      }),
+    })));
+
     setPedidos([pedido, ...pedidos]);
     setCarrito([]);
     setCuponAplicado(null);
@@ -1133,6 +1150,7 @@ export default function App() {
     setPedidoConfirmado(pedido);
     setFlujo('confirmado');
   }
+
   function aplicarCupon() {
     const codigo = codigoCupon.trim().toUpperCase();
     if (codigo === '') {
@@ -1147,14 +1165,20 @@ export default function App() {
       mostrarAviso('El cupón no es válido.', 'error');
       return;
     }
+    if (cuponAplicado === codigo) {
+      mostrarAviso('Este cupón ya está aplicado.', 'error');
+      return;
+    }
     setCuponAplicado(codigo);
     mostrarAviso('Cupón aplicado: ' + codigo + '.');
   }
+
   function abrirProducto(producto) {
     setValorResena('');
     setErrorResena(null);
     setProductoSeleccionado(producto);
   }
+
   function enviarResena(idProducto) {
     const texto = valorResena.trim();
     const numero = Number(texto);
@@ -1167,30 +1191,32 @@ export default function App() {
     setErrorResena(null);
     mostrarAviso('¡Gracias por tu reseña!');
   }
+
   function abrirNuevoProducto() {
     setProductoEdicion(null);
     setFormProducto(FORMULARIO_VACIO);
     setErroresProducto({});
     setPanel('formulario');
   }
-  function abrirEditarProducto(p) {
-    setProductoEdicion(p);
+
+    function abrirEditarProducto(producto) {
+    setProductoEdicion(producto);
     setFormProducto({
-      nombre: p.nombre,
-      categoria: p.categoria,
-      precio: String(p.precio),
-      stock: String(p.stock),
-      descripcion: p.descripcion,
+      nombre: producto.nombre,
+      categoria: producto.categoria,
+      precio: String(producto.precio),
+      stock: String(obtenerStockTotal(producto)),
+      descripcion: producto.descripcion,
     });
     setErroresProducto({});
     setPanel('formulario');
   }
+
   function cambiarCampoProducto(campo, valor) {
     setFormProducto({ ...formProducto, [campo]: valor });
-    if (erroresProducto[campo]) {
-      setErroresProducto({ ...erroresProducto, [campo]: null });
-    }
+    if (erroresProducto[campo]) setErroresProducto({ ...erroresProducto, [campo]: null });
   }
+
   function guardarProducto() {
     const nuevos = {};
     const nombre = formProducto.nombre.trim();
@@ -1199,45 +1225,46 @@ export default function App() {
     const descripcion = formProducto.descripcion.trim();
     const precio = Number(textoPrecio);
     const stock = Number(textoStock);
-    if (nombre === '') {
-      nuevos.nombre = 'Falta el nombre del producto.';
-    }
-    if (formProducto.categoria === '') {
-      nuevos.categoria = 'Elige una categoría.';
-    }
-    if (textoPrecio === '' || !Number.isInteger(precio) || precio <= 0) {
-      nuevos.precio = 'El precio debe ser un número entero mayor que 0.';
-    }
-    if (textoStock === '' || !Number.isInteger(stock) || stock < 0) {
+
+    if (nombre === '') nuevos.nombre = 'Falta el nombre del producto.';
+    if (formProducto.categoria === '') nuevos.categoria = 'Elige una categoría.';
+    if (textoPrecio === '' || !Number.isInteger(precio) || precio <= 0) nuevos.precio = 'El precio debe ser un número entero mayor que 0.';
+
+    const inventarioPorVariantes = productoEdicion && productoEdicion.variantes.length > 1;
+    if (!inventarioPorVariantes && (textoStock === '' || !Number.isInteger(stock) || stock < 0)) {
       nuevos.stock = 'El stock debe ser un número entero de 0 o más.';
     }
-    if (descripcion.length < 15) {
-      nuevos.descripcion = 'La descripción debe tener al menos 15 caracteres.';
-    }
+    if (descripcion.length < 15) nuevos.descripcion = 'La descripción debe tener al menos 15 caracteres.';
+
     setErroresProducto(nuevos);
     if (Object.keys(nuevos).length > 0) {
       mostrarAviso('Revisa los campos marcados.', 'error');
       return;
     }
+
     if (productoEdicion) {
-      setProductos(
-        productos.map((p) =>
-          p.id === productoEdicion.id
-            ? { ...p, nombre, categoria: formProducto.categoria, precio, stock, descripcion }
-            : p
-        )
-      );
+      setProductos((actuales) => actuales.map((producto) => {
+        if (producto.id !== productoEdicion.id) return producto;
+        const variantesActualizadas = producto.variantes.map((variante, indice) => ({
+          ...variante,
+          precio,
+          // Para una variante única se mantiene la edición de stock que ya tenía el panel.
+          stock: producto.variantes.length === 1 && !inventarioPorVariantes ? stock : variante.stock,
+        }));
+        return { ...producto, nombre, categoria: formProducto.categoria, precio, descripcion, variantes: variantesActualizadas };
+      }));
       mostrarAviso('Producto actualizado.');
     } else {
-      const numeros = productos.map((p) => parseInt(p.id.replace('PROD-', ''), 10));
+      const numeros = productos.map((producto) => parseInt(producto.id.replace('PROD-', ''), 10));
       const siguiente = Math.max(...numeros) + 1;
+      const idNuevo = 'PROD-' + String(siguiente).padStart(3, '0');
       const nuevo = {
-        id: 'PROD-' + String(siguiente).padStart(3, '0'),
+        id: idNuevo,
         nombre,
         categoria: formProducto.categoria,
         precio,
-        stock,
         descripcion,
+        variantes: crearVarianteUnica(String(siguiente).padStart(3, '0'), precio, stock),
       };
       setProductos([...productos, nuevo]);
       setResenas({ ...resenas, [nuevo.id]: [] });
@@ -1245,33 +1272,20 @@ export default function App() {
     }
     setPanel('lista');
   }
+
   const bannerAviso = aviso ? (
-    <View
-      style={[
-        estilos.aviso,
-        { bottom: productoSeleccionado || flujo || pedidoSeleccionado || panel ? 24 : 96 },
-        aviso.tipo === 'error' && { backgroundColor: COLORES.agotado },
-      ]}
-    >
+    <View style={[estilos.aviso, { bottom: productoSeleccionado || flujo || pedidoSeleccionado || panel ? 24 : 96 }, aviso.tipo === 'error' && { backgroundColor: COLORES.agotado }]}>
       <Text style={estilos.avisoTexto}>{aviso.texto}</Text>
     </View>
   ) : null;
+
   function alternarFavorito(id) {
-    setFavoritos((actuales) =>
-      actuales.includes(id) ? actuales.filter((x) => x !== id) : [...actuales, id]
-    );
+    setFavoritos((actuales) => actuales.includes(id) ? actuales.filter((item) => item !== id) : [...actuales, id]);
   }
+
   function renderSeccion() {
     if (seccion === 'favoritos') {
-      return (
-        <PantallaFavoritos
-          productos={productos}
-          favoritos={favoritos}
-          alAbrir={abrirProducto}
-          alAlternar={alternarFavorito}
-          alIrCatalogo={() => setSeccion('catalogo')}
-        />
-      );
+      return <PantallaFavoritos productos={productos} favoritos={favoritos} alAbrir={abrirProducto} alAlternar={alternarFavorito} alIrCatalogo={() => setSeccion('catalogo')} />;
     }
     if (seccion === 'carrito') {
       return (
@@ -1294,13 +1308,7 @@ export default function App() {
       );
     }
     if (seccion === 'historial') {
-      return (
-        <PantallaHistorial
-          pedidos={pedidos}
-          alAbrir={setPedidoSeleccionado}
-          alIrCatalogo={() => setSeccion('catalogo')}
-        />
-      );
+      return <PantallaHistorial pedidos={pedidos} alAbrir={setPedidoSeleccionado} alIrCatalogo={() => setSeccion('catalogo')} />;
     }
     return (
       <View style={estilos.seccion}>
@@ -1312,63 +1320,70 @@ export default function App() {
           favoritos={favoritos}
           alAbrir={abrirProducto}
           alAlternar={alternarFavorito}
-          vacio={
-            <MensajeVacio
-              hayProductos={productos.length > 0}
-              alLimpiar={() => {
-                setBusqueda('');
-                setCategoriaActiva('Todas');
-              }}
-            />
-          }
-          pie={
+          vacio={<MensajeVacio hayProductos={productos.length > 0} alLimpiar={() => { setBusqueda(''); setCategoriaActiva('Todas'); }} />}
+          pie={(
             <TouchableOpacity style={estilos.enlaceVendedor} onPress={() => setPanel('lista')}>
               <MaterialCommunityIcons name="storefront-outline" size={18} color={COLORES.gris} />
               <Text style={estilos.enlaceVendedorTexto}>Panel de vendedor</Text>
             </TouchableOpacity>
-          }
+          )}
         />
       </View>
     );
   }
+
+  if (!fuentesListas) return null;
+
   if (panel) {
+    const tieneVariantes = Boolean(productoEdicion && productoEdicion.variantes.length > 1);
+    const resumenVariantes = productoEdicion
+      ? productoEdicion.variantes.map((variante) => obtenerEtiquetaVariante(variante) + ': ' + variante.stock).join(' · ')
+      : '';
     return (
       <View style={estilos.contenedor}>
         <BarraEstado style="dark" />
         <FilaVolver alVolver={() => setPanel(panel === 'formulario' ? 'lista' : null)} />
         <Encabezado />
-        {panel === 'lista' && (
-          <PanelLista
-            productos={productos}
-            alEditar={abrirEditarProducto}
-            alNuevo={abrirNuevoProducto}
-          />
-        )}
-        {panel === 'formulario' && (
+        {panel === 'lista' ? <PanelLista productos={productos} alEditar={abrirEditarProducto} alNuevo={abrirNuevoProducto} /> : null}
+        {panel === 'formulario' ? (
           <PanelFormulario
             form={formProducto}
             errores={erroresProducto}
             editando={productoEdicion !== null}
+            tieneVariantes={tieneVariantes}
+            resumenVariantes={resumenVariantes}
             alCambiar={cambiarCampoProducto}
             alGuardar={guardarProducto}
           />
-        )}
+        ) : null}
         {bannerAviso}
       </View>
     );
   }
+
   if (productoSeleccionado) {
+    const productoActual = productos.find((producto) => producto.id === productoSeleccionado.id);
+    if (!productoActual) {
+      return (
+        <View style={estilos.contenedor}>
+          <BarraEstado style="dark" />
+          <FilaVolver alVolver={() => setProductoSeleccionado(null)} />
+          <EstadoVacio titulo="Producto no disponible" texto="Este producto ya no está en el catálogo." textoBoton="Volver al catálogo" alBoton={() => { setProductoSeleccionado(null); setSeccion('catalogo'); }} />
+        </View>
+      );
+    }
     return (
       <View style={estilos.contenedor}>
         <BarraEstado style="dark" />
         <FilaVolver alVolver={() => setProductoSeleccionado(null)} />
         <Encabezado />
         <PantallaDetalle
-          producto={productos.find((p) => p.id === productoSeleccionado.id)}
-          esFavorito={favoritos.includes(productoSeleccionado.id)}
+          key={productoActual.id}
+          producto={productoActual}
+          esFavorito={favoritos.includes(productoActual.id)}
           alAlternarFavorito={alternarFavorito}
           alAgregar={agregarAlCarrito}
-          resenas={resenas[productoSeleccionado.id] || []}
+          resenas={resenas[productoActual.id] || []}
           valorResena={valorResena}
           errorResena={errorResena}
           alCambiarResena={setValorResena}
@@ -1378,49 +1393,28 @@ export default function App() {
       </View>
     );
   }
+
   if (flujo) {
     return (
       <View style={estilos.contenedor}>
         <BarraEstado style="dark" />
-        {flujo === 'datos' && <FilaVolver alVolver={() => setFlujo(null)} />}
-        {flujo === 'revision' && <FilaVolver alVolver={() => setFlujo('datos')} />}
+        {flujo === 'datos' ? <FilaVolver alVolver={() => setFlujo(null)} /> : null}
+        {flujo === 'revision' ? <FilaVolver alVolver={() => setFlujo('datos')} /> : null}
         <Encabezado />
-        {flujo === 'datos' && (
-          <PantallaDatos
-            comprador={comprador}
-            errores={errores}
-            alCambiar={cambiarDato}
-            alContinuar={validarDatos}
-          />
-        )}
-        {flujo === 'revision' && (
-          <PantallaRevision
-            lineas={lineasCarrito}
-            comprador={comprador}
-            subtotal={subtotal}
-            descuento={descuento}
-            envio={envio}
-            total={total}
-            alConfirmar={confirmarPedido}
-          />
-        )}
-        {flujo === 'confirmado' && (
+        {flujo === 'datos' ? <PantallaDatos comprador={comprador} errores={errores} alCambiar={cambiarDato} alContinuar={validarDatos} /> : null}
+        {flujo === 'revision' ? <PantallaRevision lineas={lineasCarrito} comprador={comprador} subtotal={subtotal} descuento={descuento} envio={envio} total={total} alConfirmar={confirmarPedido} /> : null}
+        {flujo === 'confirmado' ? (
           <PantallaConfirmacion
             pedido={pedidoConfirmado}
-            alVerHistorial={() => {
-              setFlujo(null);
-              setSeccion('historial');
-            }}
-            alSeguir={() => {
-              setFlujo(null);
-              setSeccion('catalogo');
-            }}
+            alVerHistorial={() => { setFlujo(null); setSeccion('historial'); }}
+            alSeguir={() => { setFlujo(null); setSeccion('catalogo'); }}
           />
-        )}
+        ) : null}
         {bannerAviso}
       </View>
     );
   }
+
   if (pedidoSeleccionado) {
     return (
       <View style={estilos.contenedor}>
@@ -1432,17 +1426,14 @@ export default function App() {
       </View>
     );
   }
+
   return (
     <View style={estilos.contenedor}>
       <BarraEstado style="dark" />
       <Encabezado />
       <View style={estilos.seccion}>{renderSeccion()}</View>
       <BarraNavegacion seccionActiva={seccion} alCambiar={setSeccion} />
-      {seccion === 'carrito' && (
-        <TouchableOpacity style={estilos.flechaCarrito} onPress={() => setSeccion('catalogo')}>
-          <MaterialCommunityIcons name="chevron-left" size={28} color={COLORES.texto} />
-        </TouchableOpacity>
-      )}
+      {seccion === 'carrito' ? <TouchableOpacity style={estilos.flechaCarrito} onPress={() => setSeccion('catalogo')}><MaterialCommunityIcons name="chevron-left" size={28} color={COLORES.texto} /></TouchableOpacity> : null}
       {bannerAviso}
     </View>
   );
@@ -1493,19 +1484,28 @@ const estilos = StyleSheet.create({
   detalleEtiqueta: { marginLeft: 0, marginTop: 8, paddingVertical: 5, paddingHorizontal: 14, borderRadius: 14 },
   detalleEtiquetaTexto: { fontFamily: FUENTE.media, fontSize: 13, color: COLORES.texto },
   detallePrecio: { fontFamily: FUENTE.negrita, fontSize: 32, color: COLORES.texto, marginTop: 8 },
-  detalleStock: { fontFamily: FUENTE.media, fontSize: 13 },
+  detalleStock: { fontFamily: FUENTE.media, fontSize: 13, flex: 1 },
+  selectorVariante: { marginTop: 12, padding: 12, borderWidth: 1, borderColor: COLORES.borde, borderRadius: 14, backgroundColor: COLORES.blanco },
+  grupoOpciones: { marginBottom: 10 },
+  opcionesTitulo: { fontFamily: FUENTE.semi, fontSize: 13, color: COLORES.texto, marginBottom: 7 },
+  opcionesFila: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  opcionVariante: { minWidth: 48, paddingVertical: 8, paddingHorizontal: 13, borderRadius: 16, borderWidth: 1, borderColor: COLORES.borde, backgroundColor: COLORES.segmento, alignItems: 'center' },
+  opcionVarianteActiva: { backgroundColor: COLORES.acento, borderColor: COLORES.acento },
+  opcionVarianteTexto: { fontFamily: FUENTE.media, fontSize: 13, color: COLORES.texto },
+  opcionVarianteTextoActivo: { color: COLORES.blanco },
   calificacionFila: { flexDirection: 'row', alignItems: 'center', marginTop: 10 },
   estrellas: { flexDirection: 'row' },
   calificacionTexto: { fontFamily: FUENTE.media, fontSize: 15, color: COLORES.texto, marginLeft: 8 },
   detalleLinea: { height: 1, backgroundColor: COLORES.borde, marginTop: 12 },
   detalleDescripcion: { fontFamily: FUENTE.normal, fontSize: 14, lineHeight: 21, color: COLORES.texto, marginTop: 12 },
-  botonAgregar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 52, borderRadius: 26, backgroundColor: COLORES.acento, marginTop: 20 },
+  botonAgregar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 52, borderRadius: 26, backgroundColor: COLORES.acento, marginTop: 20, paddingHorizontal: 12 },
   botonAgregarInactivo: { backgroundColor: '#C9CCCB' },
   botonAgregarTexto: { fontFamily: FUENTE.semi, fontSize: 16, color: COLORES.blanco },
   campo: { marginHorizontal: 16, marginBottom: 12 },
   campoEtiqueta: { fontFamily: FUENTE.semi, fontSize: 13, color: COLORES.texto, marginBottom: 6 },
   campoInput: { height: 46, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, borderColor: COLORES.borde, backgroundColor: COLORES.blanco, fontFamily: FUENTE.normal, fontSize: 14, color: COLORES.texto },
   campoInputError: { borderColor: COLORES.agotado },
+  campoDeshabilitado: { backgroundColor: COLORES.segmento, color: COLORES.gris },
   campoError: { fontFamily: FUENTE.media, fontSize: 12, color: COLORES.agotado, marginTop: 4 },
   notaSimulacion: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 4, padding: 12, borderRadius: 12, backgroundColor: COLORES.chip },
   notaSimulacionTexto: { flex: 1, fontFamily: FUENTE.normal, fontSize: 12.5, lineHeight: 18, color: COLORES.texto },
@@ -1536,6 +1536,7 @@ const estilos = StyleSheet.create({
   lineaImagen: { width: 84, height: 84, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   lineaDatos: { flex: 1, marginLeft: 12 },
   lineaNombre: { fontFamily: FUENTE.semi, fontSize: 14, color: COLORES.texto },
+  lineaVariante: { fontFamily: FUENTE.normal, fontSize: 11, color: COLORES.gris, marginTop: 2 },
   lineaPrecio: { fontFamily: FUENTE.negrita, fontSize: 15, color: COLORES.texto, marginTop: 2 },
   cantidad: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', backgroundColor: COLORES.chip, borderRadius: 16, marginTop: 6 },
   cantidadBoton: { width: 34, height: 30, alignItems: 'center', justifyContent: 'center' },
@@ -1572,6 +1573,7 @@ const estilos = StyleSheet.create({
   barraItem: { flex: 1, alignItems: 'center', gap: 2 },
   barraTexto: { fontFamily: FUENTE.media, fontSize: 11 },
   vacio: { alignItems: 'center', paddingHorizontal: 24, paddingTop: 48 },
-  vacioTitulo: { fontFamily: FUENTE.negrita, fontSize: 17, color: COLORES.texto, marginBottom: 6, textAlign: 'center' },
-  vacioTexto: { fontFamily: FUENTE.normal, fontSize: 13, color: COLORES.gris, textAlign: 'center' },
 });
+
+
+
