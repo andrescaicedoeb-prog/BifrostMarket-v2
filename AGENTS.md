@@ -39,3 +39,58 @@ Docs: https://docs.expo.dev/eas/index.md
 - If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
 - Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a development build: `npx expo run:ios|android` locally, or `eas build --profile development`.
 - Prefer recommended Expo modules over third-party libraries, and check your available skills before adding dependencies. Docs: https://docs.expo.dev/versions/latest/index.md
+
+-- ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- --
+
+# Bifrost Market 2.0
+
+Aplicación Marketplace desarrollada con React Native y Expo.
+
+## Tecnologías
+- React Native
+- Expo SDK 58
+- JavaScript
+- AsyncStorage
+
+## Instalación
+
+Clonar el repositorio:
+
+```bash
+git clone https://github.com/andrescaicedoeb-prog/BifrostMarket-v2.git
+```
+
+Ingresar a la carpeta:
+
+```bash
+cd BifrostMarket-v2
+```
+
+Instalar dependencias:
+
+```bash
+npm install
+```
+
+Ejecutar la aplicación:
+
+```bash
+npm start
+```
+
+Presionar `w` para abrir en el navegador o escanear el código QR con Expo Go para Android.
+
+**Importante:** Configurar el idioma del dispositivo o emulador en **English (United States)** antes de realizar las pruebas.
+
+## Funcionalidades principales
+- Catálogo y búsqueda de productos.
+- Filtros y comparador de productos.
+- Favoritos y carrito de compras.
+- Cupones de descuento.
+- Proceso de compra y envíos simulados.
+- Seguimiento y cancelación de pedidos.
+- Panel de vendedor y gestión de inventario.
+- Notificaciones y centro de ayuda.
+
+## Nota
+Proyecto académico de demostración. Las compras, los pagos, los envíos y las respuestas de soporte son simulados. No se realizan transacciones reales.
